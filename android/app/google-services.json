@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "130151437063",
+    "project_id": "qadam-financial-app-v2",
+    "storage_bucket": "qadam-financial-app-v2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:130151437063:android:4abe85f46705e16fd4aba2",
+        "android_client_info": {
+          "package_name": "com.example.myapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC9IGRAUroLt0YX1WGzgXhDOs9IYedh5a0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

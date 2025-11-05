@@ -1,0 +1,28 @@
+{
+  "firestore": {
+    "database": "(default)",
+    "location": "nam5",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "qadam-financial-app",
+          "appId": "1:722803200965:android:a2fc1eb2866f2d886371ac",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "qadam-financial-app",
+          "configurations": {
+            "android": "1:722803200965:android:a2fc1eb2866f2d886371ac",
+            "web": "1:722803200965:web:4cd82c689284ab286371ac"
+          }
+        }
+      }
+    }
+  }
+}
