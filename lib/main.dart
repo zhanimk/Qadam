@@ -1,17 +1,17 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:qadam/firebase_options.dart';
-import 'package:qadam/screens/main_screen.dart';
-import 'package:qadam/theme/app_theme.dart'; // Import the new theme
+import 'firebase_options.dart';
+import 'screens/main_screen.dart';
+import 'theme/app_theme.dart';
 import 'screens/onboarding_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Firebase initialization is now active
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
   runApp(const MyApp());
 }
 
@@ -22,7 +22,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Qadam',
-      theme: AppTheme.themeData, // Apply the custom theme
+      theme: AppTheme.themeData,
       debugShowCheckedModeBanner: false,
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
@@ -32,7 +32,7 @@ class MyApp extends StatelessWidget {
               return const MainScreen();
             }
             return const OnboardingScreen();
-          } 
+          }
           return const Scaffold(
             body: Center(
               child: CircularProgressIndicator(),

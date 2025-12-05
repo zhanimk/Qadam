@@ -266,7 +266,13 @@ class AwardsScreen extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(value, style: AppTheme.textTheme.titleLarge),
                 const SizedBox(height: 4),
-                Text(label, textAlign: TextAlign.center, softWrap: true, style: AppTheme.textTheme.bodyMedium?.copyWith(color: AppTheme.mutedForeground)),
+                Flexible(
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: AppTheme.textTheme.bodyMedium?.copyWith(color: AppTheme.mutedForeground),
+                  ),
+                ),
               ],
             ),
           ),

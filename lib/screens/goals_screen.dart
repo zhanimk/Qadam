@@ -1,13 +1,14 @@
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'dart:math';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:qadam/theme/app_theme.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 
-// Mock data based on the provided TypeScript code
 class Goal {
-  final int id;
+  final String id;
   final String title;
   final String category;
   final int progress;
@@ -24,6 +25,31 @@ class Goal {
     required this.status,
     required this.milestones,
   });
+
+  factory Goal.fromMap(String id, Map<String, dynamic> data) {
+    return Goal(
+      id: id,
+      title: data['title'] ?? 'No Title',
+      category: data['category'] ?? 'Uncategorized',
+      progress: (data['progress'] ?? 0).toInt(),
+      deadline: data['deadline'] ?? 'No Deadline',
+      status: data['status'] ?? 'on-track',
+      milestones: (data['milestones'] as List<dynamic>? ?? [])
+          .map((m) => Milestone.fromMap(m))
+          .toList(),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'title': title,
+      'category': category,
+      'progress': progress,
+      'deadline': deadline,
+      'status': status,
+      'milestones': milestones.map((m) => m.toMap()).toList(),
+    };
+  }
 }
 
 class Milestone {
@@ -31,79 +57,32 @@ class Milestone {
   final bool completed;
 
   Milestone({required this.name, required this.completed});
-}
 
-final List<Goal> goals = [
-  Goal(
-    id: 1,
-    title: "Learn Spanish Language",
-    category: "Education",
-    progress: 65,
-    deadline: "Dec 31, 2025",
-    status: "on-track",
-    milestones: [
-      Milestone(name: "Basic grammar", completed: true),
-      Milestone(name: "500 words", completed: true),
-      Milestone(name: "Conversation practice", completed: false),
-      Milestone(name: "A2 Certificate", completed: false),
-    ],
-  ),
-  Goal(
-    id: 2,
-    title: "Run a Marathon",
-    category: "Health",
-    progress: 42,
-    deadline: "Nov 15, 2025",
-    status: "at-risk",
-    milestones: [
-      Milestone(name: "Run 5km", completed: true),
-      Milestone(name: "Run 10km", completed: true),
-      Milestone(name: "Run 21km", completed: false),
-      Milestone(name: "Marathon 42km", completed: false),
-    ],
-  ),
-  Goal(
-    id: 3,
-    title: "Read 50 Books",
-    category: "Development",
-    progress: 78,
-    deadline: "Dec 31, 2025",
-    status: "on-track",
-    milestones: [
-      Milestone(name: "10 books", completed: true),
-      Milestone(name: "25 books", completed: true),
-      Milestone(name: "40 books", completed: true),
-      Milestone(name: "50 books", completed: false),
-    ],
-  ),
-  Goal(
-    id: 4,
-    title: "Save \$10,000",
-    category: "Finance",
-    progress: 54,
-    deadline: "Dec 31, 2025",
-    status: "on-track",
-    milestones: [
-      Milestone(name: "\$2,500", completed: true),
-      Milestone(name: "\$5,000", completed: true),
-      Milestone(name: "\$7,500", completed: false),
-      Milestone(name: "\$10,000", completed: false),
-    ],
-  ),
-];
+  factory Milestone.fromMap(Map<String, dynamic> data) {
+    return Milestone(
+      name: data['name'] ?? 'Unnamed Milestone',
+      completed: data['completed'] ?? false,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'name': name,
+      'completed': completed,
+    };
+  }
+}
 
 class GoalsScreen extends StatelessWidget {
   const GoalsScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.surface,
-      body: Stack(
+    return Container(
+      color: AppTheme.surface,
+      child: Stack(
         children: [
-          // Background Effects
           const AnimatedBackground(),
-          // Main Content
           SafeArea(
             child: ListView(
               padding: const EdgeInsets.all(24.0),
@@ -120,7 +99,6 @@ class GoalsScreen extends StatelessWidget {
           ),
         ],
       ),
-      floatingActionButton: const FancyFab(),
     );
   }
 }
@@ -282,30 +260,6 @@ class _SparklesIconState extends State<SparklesIcon> with SingleTickerProviderSt
   }
 }
 
-class FancyFab extends StatelessWidget {
-  const FancyFab({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return FloatingActionButton(
-      onPressed: () {},
-      child: Ink(
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [AppTheme.primary, AppTheme.accent],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(56.0),
-        ),
-        child: const Center(
-          child: Icon(LucideIcons.plus, color: Colors.white),
-        ),
-      ),
-    );
-  }
-}
-
 Widget _buildGlowContainer(Widget child, {Color? glowColor}) {
   return Container(
     decoration: BoxDecoration(
@@ -398,31 +352,78 @@ class StatCard extends StatelessWidget {
   }
 }
 
-class GoalsList extends StatelessWidget {
+class GoalsList extends StatefulWidget {
   const GoalsList({super.key});
 
   @override
+  State<GoalsList> createState() => _GoalsListState();
+}
+
+class _GoalsListState extends State<GoalsList> {
+  Stream<QuerySnapshot>? _goalsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      _goalsStream = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('goals')
+          .snapshots();
+    } else {
+      _goalsStream = Stream.empty();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return AnimationLimiter(
-      child: ListView.separated(
-        physics: const NeverScrollableScrollPhysics(),
-        shrinkWrap: true,
-        itemCount: goals.length,
-        separatorBuilder: (context, index) => const SizedBox(height: 16),
-        itemBuilder: (context, index) {
-          final goal = goals[index];
-          return AnimationConfiguration.staggeredList(
-            position: index,
-            duration: const Duration(milliseconds: 375),
-            child: SlideAnimation(
-              verticalOffset: 50.0,
-              child: FadeInAnimation(
-                child: GoalCard(goal: goal),
-              ),
-            ),
-          );
-        },
-      ),
+    if (FirebaseAuth.instance.currentUser == null) {
+      return const Center(
+        child: Text("Please log in to see your goals."),
+      );
+    }
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: _goalsStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return const Center(child: Text("No goals yet. Add one!"));
+        }
+
+        final goals = snapshot.data!.docs
+            .map((doc) => Goal.fromMap(doc.id, doc.data() as Map<String, dynamic>))
+            .toList();
+
+        return AnimationLimiter(
+          child: ListView.separated(
+            physics: const NeverScrollableScrollPhysics(),
+            shrinkWrap: true,
+            itemCount: goals.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 16),
+            itemBuilder: (context, index) {
+              final goal = goals[index];
+              return AnimationConfiguration.staggeredList(
+                position: index,
+                duration: const Duration(milliseconds: 375),
+                child: SlideAnimation(
+                  verticalOffset: 50.0,
+                  child: FadeInAnimation(
+                    child: GoalCard(goal: goal),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }

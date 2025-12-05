@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
+import 'package:lucide_icons/lucide_icons.dart';
+import 'package:qadam/widgets/add_goal_sheet.dart';
 import 'home_screen.dart';
 import 'goals_screen.dart';
 import 'progress_screen.dart';
 import 'profile_screen.dart';
 import 'awards_screen.dart';
+import 'package:qadam/theme/app_theme.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({Key? key}) : super(key: key);
@@ -16,7 +19,6 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
-  // Add keys for all screens to control their state and animations
   Key _homeKey = UniqueKey();
   Key _goalsKey = UniqueKey();
   Key _progressKey = UniqueKey();
@@ -25,7 +27,6 @@ class _MainScreenState extends State<MainScreen> {
 
   void _onItemTapped(int index) {
     setState(() {
-      // Assign a new key to the selected screen to trigger a rebuild and restart its animation
       switch (index) {
         case 0:
           _homeKey = UniqueKey();
@@ -49,7 +50,6 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // List of widgets for the IndexedStack, with keys to control rebuilding
     final List<Widget> _widgetOptions = <Widget>[
       HomeScreen(key: _homeKey),
       GoalsScreen(key: _goalsKey),
@@ -60,21 +60,47 @@ class _MainScreenState extends State<MainScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF13112A),
-      extendBody: true, // Make body extend behind the navigation bar
+      extendBody: true,
       body: IndexedStack(
         index: _selectedIndex,
         children: _widgetOptions,
       ),
       bottomNavigationBar: _buildFrostedNavBar(),
+      floatingActionButton: _selectedIndex == 1 ? _buildFancyFab(context) : null,
+    );
+  }
+
+  Widget _buildFancyFab(BuildContext context) {
+    return FloatingActionButton(
+      onPressed: () {
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (context) => AddGoalSheet(),
+        );
+      },
+      child: Ink(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [AppTheme.primary, AppTheme.accent],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(56.0),
+        ),
+        child: const Center(
+          child: Icon(LucideIcons.plus, color: Colors.white),
+        ),
+      ),
     );
   }
 
   Widget _buildFrostedNavBar() {
     return Container(
-      // Make it float above the bottom
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(25), // Pill shape
+        borderRadius: BorderRadius.circular(25),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
           child: Container(

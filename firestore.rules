@@ -1,9 +1,19 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read: if true;
-      allow write: if request.auth != null;
+    match /users/{userId} {
+      // Пользователь может создавать, читать, обновлять и удалять свой собственный документ
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      // Пользователь может читать и записывать данные в под-коллекцию 'goals'
+      match /goals/{goalId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Здесь можно будет добавить правила для других под-коллекций, например, 'awards'
+      // match /awards/{awardId} {
+      //   allow read, write: if request.auth != null && request.auth.uid == userId;
+      // }
     }
   }
 }
