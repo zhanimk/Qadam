@@ -12,7 +12,7 @@ class AppTheme {
   static const Color accentForeground = Color(0xFFFFFFFF);
 
   // Background & Surface
-  static const Color surface = Color(0xFF13112A); // Adjusted from 0F172A to match app
+  static const Color surface = Color(0xFF0F0F1E); // Adjusted from 0F172A to match app
   static const Color onSurface = Color(0xFFF1F5F9);
   static const Color card = Color(0xFF1E293B);
   static const Color cardForeground = Color(0xFFF1F5F9);

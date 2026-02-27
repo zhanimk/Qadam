@@ -1,103 +1,149 @@
 
+import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'dart:math';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:qadam/services/firestore_service.dart';
 import 'package:qadam/theme/app_theme.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+import 'dart:math';
 
+
+// NOTE: The Goal and Milestone models are simplified here. 
+// In a real app, you might want to use a more robust solution like Freezed.
 class Goal {
   final String id;
   final String title;
   final String category;
-  final int progress;
-  final String deadline;
   final String status;
-  final List<Milestone> milestones;
+  final String? description;
+  final Timestamp createdAt;
 
   Goal({
     required this.id,
     required this.title,
     required this.category,
-    required this.progress,
-    required this.deadline,
     required this.status,
-    required this.milestones,
+    this.description,
+    required this.createdAt,
   });
 
-  factory Goal.fromMap(String id, Map<String, dynamic> data) {
+  factory Goal.fromSnapshot(DocumentSnapshot<Map<String, dynamic>> snapshot) {
+    final data = snapshot.data()!;
     return Goal(
-      id: id,
+      id: snapshot.id,
       title: data['title'] ?? 'No Title',
       category: data['category'] ?? 'Uncategorized',
-      progress: (data['progress'] ?? 0).toInt(),
-      deadline: data['deadline'] ?? 'No Deadline',
       status: data['status'] ?? 'on-track',
-      milestones: (data['milestones'] as List<dynamic>? ?? [])
-          .map((m) => Milestone.fromMap(m))
-          .toList(),
+      description: data['description'],
+      createdAt: data['createdAt'] ?? Timestamp.now(),
     );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'title': title,
-      'category': category,
-      'progress': progress,
-      'deadline': deadline,
-      'status': status,
-      'milestones': milestones.map((m) => m.toMap()).toList(),
-    };
   }
 }
 
-class Milestone {
-  final String name;
-  final bool completed;
-
-  Milestone({required this.name, required this.completed});
-
-  factory Milestone.fromMap(Map<String, dynamic> data) {
-    return Milestone(
-      name: data['name'] ?? 'Unnamed Milestone',
-      completed: data['completed'] ?? false,
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'name': name,
-      'completed': completed,
-    };
-  }
-}
-
-class GoalsScreen extends StatelessWidget {
+class GoalsScreen extends StatefulWidget {
   const GoalsScreen({Key? key}) : super(key: key);
 
   @override
+  State<GoalsScreen> createState() => _GoalsScreenState();
+}
+
+class _GoalsScreenState extends State<GoalsScreen> {
+  final FirestoreService _firestoreService = FirestoreService();
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      color: AppTheme.surface,
-      child: Stack(
+    return Scaffold(
+      backgroundColor: AppTheme.surface, // Use theme color
+      body: Stack(
         children: [
           const AnimatedBackground(),
-          SafeArea(
-            child: ListView(
-              padding: const EdgeInsets.all(24.0),
-              children: const [
-                Header(),
-                SizedBox(height: 24),
-                OverviewStats(),
-                SizedBox(height: 24),
-                GoalsList(),
-                SizedBox(height: 16),
-                MotivationalCard(),
-              ],
-            ),
+          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: _firestoreService.getGoalsStream(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return Center(child: Text("Error: ${snapshot.error}"));
+              }
+              
+              final goalsDocs = snapshot.data?.docs ?? [];
+              final goals = goalsDocs.map((doc) => Goal.fromSnapshot(doc)).toList();
+
+              final totalGoals = goals.length;
+              final completedGoals = goals.where((g) => g.status == 'completed').length;
+              final inProgressGoals = totalGoals - completedGoals;
+
+              return SafeArea(
+                child: CustomScrollView(
+                  slivers: [
+                    SliverAppBar(
+                      backgroundColor: Colors.transparent,
+                      elevation: 0,
+                      leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.of(context).pop()),
+                      floating: true,
+                    ),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                        child: Column(
+                          children: [
+                             const Header(),
+                             const SizedBox(height: 24),
+                             OverviewStats(total: totalGoals, inProgress: inProgressGoals, completed: completedGoals),
+                             const SizedBox(height: 24),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (goals.isEmpty) 
+                      SliverFillRemaining(
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(LucideIcons.target, size: 60, color: AppTheme.mutedForeground),
+                              const SizedBox(height: 16),
+                              Text("No goals yet.", style: AppTheme.textTheme.headlineSmall),
+                              Text("Tap '+' to add one!", style: AppTheme.textTheme.bodyLarge?.copyWith(color: AppTheme.mutedForeground)),
+                            ],
+                          )
+                        ),
+                      )
+                    else
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                        sliver: SliverList(delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                             return AnimationConfiguration.staggeredList(
+                                position: index,
+                                duration: const Duration(milliseconds: 375),
+                                child: SlideAnimation(
+                                  verticalOffset: 50.0,
+                                  child: FadeInAnimation(
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(bottom: 16.0),
+                                      child: GoalCard(goal: goals[index]),
+                                    ),
+                                  ),
+                                ),
+                              );
+                          },
+                          childCount: goals.length,
+                        )),
+                      )
+                  ],
+                ),
+              );
+            },
           ),
         ],
+      ),
+       floatingActionButton: FloatingActionButton( 
+        onPressed: () => _showGoalDialog(context),
+        backgroundColor: AppTheme.accent,
+        child: const Icon(LucideIcons.plus, color: Colors.white),
       ),
     );
   }
@@ -277,33 +323,34 @@ Widget _buildGlowContainer(Widget child, {Color? glowColor}) {
 }
 
 class OverviewStats extends StatelessWidget {
-  const OverviewStats({super.key});
+  final int total, inProgress, completed;
+  const OverviewStats({required this.total, required this.inProgress, required this.completed, super.key});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Expanded(
+        Expanded(
           child: StatCard(
-            value: "8",
+            value: total.toString(),
             label: "Total Goals",
-            gradient: LinearGradient(colors: [AppTheme.primary, AppTheme.accent]),
+            gradient: const LinearGradient(colors: [AppTheme.primary, AppTheme.accent]),
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: StatCard(
-            value: "5",
+            value: inProgress.toString(),
             label: "In Progress",
-            gradient: LinearGradient(colors: [AppTheme.chart3, AppTheme.chart2]),
+            gradient: const LinearGradient(colors: [AppTheme.chart3, AppTheme.chart2]),
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: StatCard(
-            value: "3",
+            value: completed.toString(),
             label: "Completed",
-            gradient: LinearGradient(colors: [AppTheme.chart4, AppTheme.chart5]),
+            gradient: const LinearGradient(colors: [AppTheme.chart4, AppTheme.chart5]),
           ),
         ),
       ],
@@ -352,81 +399,7 @@ class StatCard extends StatelessWidget {
   }
 }
 
-class GoalsList extends StatefulWidget {
-  const GoalsList({super.key});
 
-  @override
-  State<GoalsList> createState() => _GoalsListState();
-}
-
-class _GoalsListState extends State<GoalsList> {
-  Stream<QuerySnapshot>? _goalsStream;
-
-  @override
-  void initState() {
-    super.initState();
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      _goalsStream = FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('goals')
-          .snapshots();
-    } else {
-      _goalsStream = Stream.empty();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (FirebaseAuth.instance.currentUser == null) {
-      return const Center(
-        child: Text("Please log in to see your goals."),
-      );
-    }
-
-    return StreamBuilder<QuerySnapshot>(
-      stream: _goalsStream,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Center(child: Text("No goals yet. Add one!"));
-        }
-
-        final goals = snapshot.data!.docs
-            .map((doc) => Goal.fromMap(doc.id, doc.data() as Map<String, dynamic>))
-            .toList();
-
-        return AnimationLimiter(
-          child: ListView.separated(
-            physics: const NeverScrollableScrollPhysics(),
-            shrinkWrap: true,
-            itemCount: goals.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 16),
-            itemBuilder: (context, index) {
-              final goal = goals[index];
-              return AnimationConfiguration.staggeredList(
-                position: index,
-                duration: const Duration(milliseconds: 375),
-                child: SlideAnimation(
-                  verticalOffset: 50.0,
-                  child: FadeInAnimation(
-                    child: GoalCard(goal: goal),
-                  ),
-                ),
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-}
 
 class GoalCard extends StatelessWidget {
   final Goal goal;
@@ -449,7 +422,6 @@ class GoalCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusColor = getStatusColor(goal.status);
-    final completedMilestones = goal.milestones.where((m) => m.completed).length;
 
     return _buildGlowContainer(
       Card(
@@ -462,7 +434,7 @@ class GoalCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const Icon(LucideIcons.flag, color: AppTheme.primary, size: 32),
+                  const Icon(LucideIcons.flag, color: AppTheme.primary, size: 20),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -474,47 +446,31 @@ class GoalCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const Icon(LucideIcons.moreVertical),
+                  IconButton(
+                    icon: const Icon(LucideIcons.moreVertical),
+                    onPressed: () => _showActionMenu(context, goal),
+                  ),
                 ],
               ),
+              if (goal.description != null && goal.description!.isNotEmpty)
+                 Padding(
+                   padding: const EdgeInsets.only(top: 8.0),
+                   child: Text(goal.description!, style: AppTheme.textTheme.bodyMedium?.copyWith(color: AppTheme.mutedForeground)),
+                 ),
               const SizedBox(height: 12),
               Chip(
                 label: Text(goal.status.replaceAll('-', ' ')),
                 backgroundColor: statusColor.withAlpha(26),
                 labelStyle: TextStyle(color: statusColor),
                 side: BorderSide(color: statusColor),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
               ),
               const SizedBox(height: 16),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text("Overall Progress"),
-                  Text("${goal.progress}%",
-                      style: AppTheme.textTheme.titleMedium),
-                ],
-              ),
-              const SizedBox(height: 8),
-              LinearProgressIndicator(
-                value: goal.progress / 100,
-                backgroundColor: AppTheme.muted,
-                valueColor: AlwaysStoppedAnimation<Color>(statusColor),
-              ),
-              const SizedBox(height: 16),
-              Text("Milestones:", style: AppTheme.textTheme.titleMedium),
-              ...goal.milestones.map((milestone) => MilestoneItem(milestone: milestone)),
-              const Divider(height: 32),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(LucideIcons.calendar, size: 16, color: AppTheme.mutedForeground),
-                      const SizedBox(width: 8),
-                      Text(goal.deadline, style: AppTheme.textTheme.bodyMedium?.copyWith(color: AppTheme.mutedForeground)),
-                    ],
-                  ),
-                  Text("$completedMilestones/${goal.milestones.length}",
-                      style: AppTheme.textTheme.bodyMedium?.copyWith(color: AppTheme.mutedForeground)),
+                  const Icon(LucideIcons.calendar, size: 16, color: AppTheme.mutedForeground),
+                   const SizedBox(width: 8),
+                   Text( 'Created: ${goal.createdAt.toDate().day}/${goal.createdAt.toDate().month}/${goal.createdAt.toDate().year}', style: AppTheme.textTheme.bodySmall?.copyWith(color: AppTheme.mutedForeground)),
                 ],
               ),
             ],
@@ -526,77 +482,176 @@ class GoalCard extends StatelessWidget {
   }
 }
 
-class MilestoneItem extends StatelessWidget {
-  final Milestone milestone;
+// --- Dialog and Action Menu --- 
 
-  const MilestoneItem({super.key, required this.milestone});
+final _firestoreService = FirestoreService();
 
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        children: [
-          Icon(
-            milestone.completed ? LucideIcons.checkCircle : LucideIcons.circle,
-            color: milestone.completed ? AppTheme.chart3 : AppTheme.mutedForeground,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            milestone.name,
-            style: AppTheme.textTheme.bodyMedium?.copyWith(
-              decoration: milestone.completed ? TextDecoration.lineThrough : null,
-              color: milestone.completed ? AppTheme.mutedForeground : AppTheme.onSurface,
+void _showActionMenu(BuildContext context, Goal goal) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return BackdropFilter(
+           filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+           child: Container(
+             padding: const EdgeInsets.all(16),
+             decoration: BoxDecoration(
+                color: AppTheme.surface.withAlpha(204),
+                borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
+             ),
+            child: Wrap(
+              children: <Widget>[
+                ListTile(
+                  leading: const Icon(LucideIcons.edit, color: AppTheme.onSurface),
+                  title: const Text('Edit Goal', style: TextStyle(color: AppTheme.onSurface)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showGoalDialog(context, goal: goal);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(LucideIcons.checkCircle, color: AppTheme.chart3),
+                  title: Text(goal.status == 'completed' ? 'Mark as In Progress' : 'Mark as Completed', style: const TextStyle(color: AppTheme.chart3)),
+                  onTap: () {
+                     final newStatus = goal.status == 'completed' ? 'on-track' : 'completed';
+                    _firestoreService.updateGoal(goal.id, {'status': newStatus});
+                    Navigator.pop(context);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(LucideIcons.trash2, color: AppTheme.chart5),
+                  title: const Text('Delete Goal', style: TextStyle(color: AppTheme.chart5)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showDeleteConfirmation(context, goal.id);
+                  },
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
+                   ),
+        );
+      },
     );
-  }
 }
 
-class MotivationalCard extends StatelessWidget {
-  const MotivationalCard({super.key});
+void _showDeleteConfirmation(BuildContext context, String goalId) {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      backgroundColor: AppTheme.surface,
+      title: const Text("Delete Goal?"),
+      content: const Text("This action cannot be undone."),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+        ElevatedButton(
+          onPressed: () {
+            _firestoreService.deleteGoal(goalId);
+            Navigator.pop(context);
+          },
+          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.chart5),
+          child: const Text("Delete"),
+        ),
+      ],
+    ),
+  );
+}
 
-  @override
-  Widget build(BuildContext context) {
-    return _buildGlowContainer(
-      Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [AppTheme.primary, AppTheme.accent],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+void _showGoalDialog(BuildContext context, {Goal? goal}) {
+  final formKey = GlobalKey<FormState>();
+  String title = goal?.title ?? '';
+  String description = goal?.description ?? '';
+  String category = goal?.category ?? 'Personal';
+  String status = goal?.status ?? 'on-track';
+
+  final categories = ['Personal', 'Work', 'Health', 'Finance', 'Learning'];
+  final statuses = ['on-track', 'at-risk', 'completed'];
+
+  showDialog(
+    context: context,
+    builder: (context) {
+      return StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            backgroundColor: AppTheme.surface,
+            title: Text(goal == null ? "New Goal" : "Edit Goal"),
+            content: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    initialValue: title,
+                    decoration: const InputDecoration(labelText: "Title"),
+                    validator: (value) =>
+                        (value?.isEmpty ?? true) ? "Title cannot be empty" : null,
+                    onSaved: (value) => title = value!,
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    initialValue: category,
+                    decoration: const InputDecoration(labelText: "Category"),
+                    items: categories
+                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                        .toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        category = value!;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    initialValue: status,
+                    decoration: const InputDecoration(labelText: "Status"),
+                    items: statuses
+                        .map((s) => DropdownMenuItem(
+                            value: s, child: Text(s.replaceAll('-', ' '))))
+                        .toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        status = value!;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    initialValue: description,
+                    decoration:
+                        const InputDecoration(labelText: "Description (optional)"),
+                    onSaved: (value) => description = value ?? '',
+                  ),
+                ],
+              ),
             ),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            children: [
-              const Icon(LucideIcons.trendingUp, color: Colors.white, size: 32),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("Keep it up!",
-                        style: AppTheme.textTheme.titleLarge?.copyWith(color: AppTheme.primaryForeground)),
-                    const SizedBox(height: 4),
-                    Text(
-                      "You're on the right track to achieving your goals. Small steps every day lead to big results.",
-                      style: AppTheme.textTheme.bodyMedium?.copyWith(color: AppTheme.primaryForeground.withAlpha(204)),
-                    ),
-                  ],
-                ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Cancel")),
+              ElevatedButton(
+                onPressed: () {
+                  if (formKey.currentState!.validate()) {
+                    formKey.currentState!.save();
+                    final data = {
+                      'title': title,
+                      'description': description,
+                      'category': category,
+                      'status': status,
+                      'createdAt': goal?.createdAt ?? FieldValue.serverTimestamp(),
+                    };
+                    if (goal == null) {
+                      _firestoreService.addGoal(data);
+                    } else {
+                      _firestoreService.updateGoal(goal.id, data);
+                    }
+                    Navigator.pop(context);
+                  }
+                },
+                child: const Text("Save"),
               ),
             ],
-          ),
-        ),
-      ),
-      glowColor: AppTheme.primary,
-    );
-  }
+          );
+        },
+      );
+    },
+  );
 }

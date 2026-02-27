@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:qadam/screens/goals_screen.dart'; 
+import 'package:intl/intl.dart';
+import 'package:qadam/services/firestore_service.dart';
 
 class AddGoalSheet extends StatefulWidget {
   const AddGoalSheet({Key? key}) : super(key: key);
@@ -13,49 +13,65 @@ class AddGoalSheet extends StatefulWidget {
 class _AddGoalSheetState extends State<AddGoalSheet> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
-  final _categoryController = TextEditingController();
-  final _deadlineController = TextEditingController();
+  final _categoryController = TextEditingController(text: 'Personal');
+  final _descriptionController = TextEditingController();
+  final _startDateController = TextEditingController();
+  final _dueDateController = TextEditingController();
+  final _firestoreService = FirestoreService();
+
+  DateTime? _startDate;
+  DateTime? _dueDate;
 
   Future<void> _addGoal() async {
     if (_formKey.currentState!.validate()) {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        // Handle user not being logged in
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('You must be logged in to add a goal.')),
-        );
-        return;
-      }
+      _formKey.currentState!.save();
 
-      final newGoal = Goal(
-        id: '', // Firestore will generate this
-        title: _titleController.text,
-        category: _categoryController.text,
-        deadline: _deadlineController.text,
-        progress: 0,
-        status: 'on-track',
-        milestones: [],
-      );
+      final data = {
+        'title': _titleController.text,
+        'category': _categoryController.text,
+        'description': _descriptionController.text,
+        'status': 'on-track',
+        'createdAt': FieldValue.serverTimestamp(),
+        'startDate': _startDate != null ? Timestamp.fromDate(_startDate!) : null,
+        'dueDate': _dueDate != null ? Timestamp.fromDate(_dueDate!) : null,
+      };
 
       try {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .collection('goals')
-            .add(newGoal.toMap());
+        await _firestoreService.addGoal(data);
         Navigator.of(context).pop();
       } catch (e) {
-        // Handle error
         print("Error adding goal: $e");
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to add goal: $e')), // Changed to showSnackBar
+          SnackBar(content: Text('Failed to add goal: $e')),
         );
       }
     }
   }
 
+  Future<void> _selectDate(BuildContext context, bool isStartDate) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2101),
+    );
+    if (picked != null) {
+      setState(() {
+        if (isStartDate) {
+          _startDate = picked;
+          _startDateController.text = DateFormat.yMd().format(picked);
+        } else {
+          _dueDate = picked;
+          _dueDateController.text = DateFormat.yMd().format(picked);
+        }
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final categories = ['Personal', 'Work', 'Health', 'Finance', 'Learning'];
+
     return Padding(
       padding: MediaQuery.of(context).viewInsets,
       child: Container(
@@ -82,26 +98,40 @@ class _AddGoalSheetState extends State<AddGoalSheet> {
                 },
               ),
               const SizedBox(height: 16),
-              TextFormField(
-                controller: _categoryController,
-                decoration: const InputDecoration(labelText: 'Category'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a category';
-                  }
-                  return null;
-                },
+              DropdownButtonFormField<String>(
+                initialValue: _categoryController.text,
+                decoration: const InputDecoration(labelText: "Category"),
+                items: categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                onChanged: (value) => setState(() {
+                  _categoryController.text = value!;
+                }),
               ),
               const SizedBox(height: 16),
               TextFormField(
-                controller: _deadlineController,
-                decoration: const InputDecoration(labelText: 'Deadline'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a deadline';
-                  }
-                  return null;
-                },
+                controller: _descriptionController,
+                decoration: const InputDecoration(labelText: 'Description (optional)'),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _startDateController,
+                      decoration: const InputDecoration(labelText: 'Start Date'),
+                      readOnly: true,
+                      onTap: () => _selectDate(context, true),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _dueDateController,
+                      decoration: const InputDecoration(labelText: 'Due Date'),
+                      readOnly: true,
+                      onTap: () => _selectDate(context, false),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
               ElevatedButton(

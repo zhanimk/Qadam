@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 
-class FinanceScreen extends StatelessWidget {
-  const FinanceScreen({Key? key}) : super(key: key);
+class HabitsScreen extends StatelessWidget {
+  const HabitsScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Finance'),
+        title: const Text('Habits'),
       ),
       body: const Center(
-        child: Text('Finance Screen - Coming Soon!'),
+        child: Text('Habits Screen - Coming Soon!'),
       ),
     );
   }
