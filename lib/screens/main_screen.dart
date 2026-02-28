@@ -3,7 +3,6 @@ import 'dart:ui';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'home_screen.dart';
 import 'goals_screen.dart';
-import 'progress_screen.dart';
 import 'profile_screen.dart';
 import 'awards_screen.dart';
 import 'package:qadam/theme/app_theme.dart';
@@ -21,7 +20,6 @@ class _MainScreenState extends State<MainScreen> {
 
   Key _homeKey = UniqueKey();
   Key _goalsKey = UniqueKey();
-  Key _progressKey = UniqueKey();
   Key _awardsKey = UniqueKey();
   Key _profileKey = UniqueKey();
 
@@ -35,12 +33,9 @@ class _MainScreenState extends State<MainScreen> {
           _goalsKey = UniqueKey();
           break;
         case 2:
-          _progressKey = UniqueKey();
-          break;
-        case 3:
           _awardsKey = UniqueKey();
           break;
-        case 4:
+        case 3:
           _profileKey = UniqueKey();
           break;
       }
@@ -53,7 +48,6 @@ class _MainScreenState extends State<MainScreen> {
     final List<Widget> _widgetOptions = <Widget>[
       HomeScreen(key: _homeKey, onNavigate: _onItemTapped),
       GoalsScreen(key: _goalsKey),
-      ProgressPage(key: _progressKey),
       AwardsScreen(key: _awardsKey),
       ProfilePage(key: _profileKey, onBack: () => _onItemTapped(0)),
     ];
@@ -115,9 +109,8 @@ class _MainScreenState extends State<MainScreen> {
               children: [
                 _buildNavItem(Icons.home_filled, 'Home', 0),
                 _buildNavItem(Icons.track_changes, 'Goals', 1),
-                _buildNavItem(Icons.show_chart, 'Progress', 2),
-                _buildNavItem(Icons.military_tech, 'Awards', 3),
-                _buildNavItem(Icons.person_outline, 'Profile', 4),
+                _buildNavItem(Icons.military_tech, 'Awards', 2),
+                _buildNavItem(Icons.person_outline, 'Profile', 3),
               ],
             ),
           ),

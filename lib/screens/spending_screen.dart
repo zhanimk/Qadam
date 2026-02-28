@@ -1,4 +1,3 @@
-
 import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -20,7 +19,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.surface.withAlpha(240),
+      backgroundColor: const Color(0xFF080812),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -28,10 +27,66 @@ class _SpendingScreenState extends State<SpendingScreen> {
           icon: const Icon(LucideIcons.arrowLeft, color: AppTheme.onSurface),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Text('Financial Goals', style: AppTheme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+        title: Text('Financial Health', style: AppTheme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.onSurface)),
         centerTitle: true,
       ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildEducationalContent(context),
+            const SizedBox(height: 24),
+            Text("Your Goals", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.onSurface)),
+            const SizedBox(height: 16),
+            _buildGoalsList(),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showAddGoalSheet(),
+        backgroundColor: AppTheme.accent,
+        elevation: 8,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: const Icon(LucideIcons.plus, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _buildEducationalContent(BuildContext context) {
+    return _buildGlowContainer(
+      _buildGlassCard(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: AppTheme.chart4.withAlpha(50), borderRadius: BorderRadius.circular(12)),
+                    child: const Icon(LucideIcons.lightbulb, color: AppTheme.chart4, size: 24),
+                  ),
+                  const SizedBox(width: 16),
+                  Text("Financial Tip of the Day", style: AppTheme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.onSurface)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                "The 50/30/20 Rule: Allocate your income - 50% for needs, 30% for wants, and 20% for savings. It's a simple way to manage your money effectively.",
+                 style: const TextStyle(color: AppTheme.mutedForeground, fontSize: 14, height: 1.5),
+              ),
+            ],
+          ),
+        ),
+      ),
+      glowColor: AppTheme.chart4
+    );
+  }
+
+  Widget _buildGoalsList() {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: _firestoreService.getSpendingGoalsStream(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -45,7 +100,9 @@ class _SpendingScreenState extends State<SpendingScreen> {
 
           return AnimationLimiter(
             child: ListView.builder(
-              padding: const EdgeInsets.all(20),
+              shrinkWrap: true, 
+              physics: const NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.zero, 
               itemCount: goals.length,
               itemBuilder: (context, index) {
                 final goal = goals[index];
@@ -64,28 +121,23 @@ class _SpendingScreenState extends State<SpendingScreen> {
             ),
           );
         },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddGoalSheet(),
-        backgroundColor: AppTheme.accent,
-        elevation: 8,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: const Icon(LucideIcons.plus, color: Colors.white),
-      ),
-    );
+      );
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(LucideIcons.piggyBank, size: 80, color: AppTheme.mutedForeground),
-          const SizedBox(height: 20),
-          Text('No Financial Goals Yet', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          const Text('Tap the + button to add a goal!', style: TextStyle(color: AppTheme.mutedForeground, fontSize: 16)),
-        ],
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 40),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(LucideIcons.piggyBank, size: 60, color: AppTheme.mutedForeground),
+            const SizedBox(height: 16),
+            Text('No Financial Goals Yet', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.onSurface)),
+            const SizedBox(height: 8),
+            const Text('Tap the + button to add a new goal!', style: TextStyle(color: AppTheme.mutedForeground, fontSize: 16)),
+          ],
+        ),
       ),
     );
   }
@@ -98,45 +150,48 @@ class _SpendingScreenState extends State<SpendingScreen> {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
-      child: _buildGlassCard(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Text('Saved: \$${savedAmount.toStringAsFixed(2)} / \$${targetAmount.toStringAsFixed(2)}', style: TextStyle(color: AppTheme.mutedForeground, fontSize: 14)),
-              const SizedBox(height: 16),
-              LinearProgressIndicator(
-                value: progress,
-                backgroundColor: AppTheme.surface.withAlpha(128),
-                valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.accent),
-                minHeight: 8,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton.icon(
-                    icon: const Icon(LucideIcons.plusCircle, size: 18),
-                    label: const Text('Add Funds'),
-                    onPressed: () => _showUpdateFundsSheet(goalId, savedAmount, targetAmount),
-                    style: TextButton.styleFrom(foregroundColor: AppTheme.accent),
-                  ),
-                  const SizedBox(width: 8),
-                  TextButton.icon(
-                     icon: const Icon(LucideIcons.trash2, size: 18),
-                     label: const Text('Delete'),
-                     onPressed: () => _firestoreService.deleteSpendingGoal(goalId),
-                     style: TextButton.styleFrom(foregroundColor: AppTheme.chart5),
-                  ),
-                ],
-              )
-            ],
+      child: _buildGlowContainer(
+        _buildGlassCard(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text('Saved: \$${savedAmount.toStringAsFixed(2)} / \$${targetAmount.toStringAsFixed(2)}', style: TextStyle(color: AppTheme.mutedForeground, fontSize: 14)),
+                const SizedBox(height: 16),
+                LinearProgressIndicator(
+                  value: progress,
+                  backgroundColor: AppTheme.surface.withAlpha(128),
+                  valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.accent),
+                  minHeight: 10,
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton.icon(
+                      icon: const Icon(LucideIcons.plusCircle, size: 18),
+                      label: const Text('Add Funds'),
+                      onPressed: () => _showUpdateFundsSheet(goalId, savedAmount, targetAmount),
+                      style: TextButton.styleFrom(foregroundColor: AppTheme.accent),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton.icon(
+                       icon: const Icon(LucideIcons.trash2, size: 18),
+                       label: const Text('Delete'),
+                       onPressed: () => _firestoreService.deleteSpendingGoal(goalId),
+                       style: TextButton.styleFrom(foregroundColor: AppTheme.chart5),
+                    ),
+                  ],
+                )
+              ],
+            ),
           ),
         ),
+        glowColor: AppTheme.accent
       ),
     );
   }
@@ -154,20 +209,14 @@ class _SpendingScreenState extends State<SpendingScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Add Funds', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+              Text('Add Funds', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.onSurface)),
               const SizedBox(height: 24),
               TextField(
                 controller: controller,
                 autofocus: true,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 style: const TextStyle(color: AppTheme.onSurface),
-                decoration: InputDecoration(
-                  labelText: 'Amount to Add',
-                  labelStyle: const TextStyle(color: AppTheme.mutedForeground),
-                  filled: true,
-                  fillColor: AppTheme.surface.withAlpha(128),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                ),
+                decoration: _getInputDecoration('Amount to Add'),
               ),
               const SizedBox(height: 24),
               SizedBox(
@@ -206,7 +255,7 @@ class _SpendingScreenState extends State<SpendingScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('New Financial Goal', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+              Text('New Financial Goal', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.onSurface)),
               const SizedBox(height: 24),
               TextField(
                 controller: titleController,
@@ -256,6 +305,8 @@ class _SpendingScreenState extends State<SpendingScreen> {
         filled: true,
         fillColor: AppTheme.surface.withAlpha(128),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withAlpha(26))),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppTheme.accent)),
       );
   }
 
@@ -298,6 +349,23 @@ class _SpendingScreenState extends State<SpendingScreen> {
           child: child,
         ),
       ),
+    );
+  }
+
+  Widget _buildGlowContainer(Widget child, {Color? glowColor, double borderRadius = 20}) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(borderRadius),
+        boxShadow: [
+          BoxShadow(
+            color: (glowColor ?? AppTheme.primary).withAlpha(102),
+            blurRadius: 25,
+            spreadRadius: -8,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: child,
     );
   }
 }

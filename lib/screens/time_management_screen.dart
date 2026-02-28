@@ -1,379 +1,304 @@
+import 'dart:async';
+import 'dart:ui';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import '../theme/app_theme.dart';
-import '../widgets/pomodoro_timer.dart';
-import '../widgets/weekly_calendar.dart';
-import '../widgets/daily_planner.dart';
+import 'package:qadam/models/task_model.dart';
+import 'package:qadam/services/firestore_service.dart';
+import 'package:qadam/theme/app_theme.dart';
 
 class TimeManagementPage extends StatefulWidget {
   final VoidCallback onBack;
-
   const TimeManagementPage({Key? key, required this.onBack}) : super(key: key);
 
   @override
   _TimeManagementPageState createState() => _TimeManagementPageState();
 }
 
-class _TimeManagementPageState extends State<TimeManagementPage> with TickerProviderStateMixin {
-  late TabController _tabController;
-  late AnimationController _animationController;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 4, vsync: this);
-    _animationController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000));
-    _animationController.forward();
-  }
+class _TimeManagementPageState extends State<TimeManagementPage> {
+  final FirestoreService _firestoreService = FirestoreService();
+  Timer? _timer;
+  String? _currentTaskId;
 
   @override
   void dispose() {
-    _tabController.dispose();
-    _animationController.dispose();
+    _timer?.cancel();
     super.dispose();
   }
 
-  Widget _buildAnimatedWidget(Widget child, {required double intervalStart, double intervalEnd = 1.0, Offset slideBegin = const Offset(0, 30)}) {
-    return AnimatedBuilder(
-      animation: _animationController,
-      child: child,
-      builder: (context, child) {
-        final animation = CurvedAnimation(
-          parent: _animationController,
-          curve: Interval(intervalStart, intervalEnd, curve: Curves.easeOutCubic),
-        );
-        final opacity = Tween<double>(begin: 0.0, end: 1.0).animate(animation);
-        final slide = Tween<Offset>(begin: slideBegin, end: Offset.zero).animate(animation);
+  void _startTimer(Task task) {
+    if (_currentTaskId == task.id) return; 
+    _stopTimer(); 
 
-        return Opacity(
-          opacity: opacity.value,
-          child: Transform.translate(
-            offset: slide.value,
-            child: child,
-          ),
-        );
-      },
-    );
+    setState(() => _currentTaskId = task.id);
+
+    _timer = Timer.periodic(const Duration(minutes: 1), (_) {
+      final newMinutes = task.minutesSpent + 1;
+      _firestoreService.updateTask(task.id, {'minutesSpent': newMinutes});
+      _firestoreService.incrementDailyProgress('focusHours', 1/60);
+    });
   }
 
-  Widget _buildGlowContainer(Widget child, {Color? glowColor}) {
-    return Container(
-      decoration: BoxDecoration(
-        boxShadow: [
-          BoxShadow(
-            color: (glowColor ?? AppTheme.primary).withAlpha(102),
-            blurRadius: 15,
-            spreadRadius: -5,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: child,
-    );
+  void _stopTimer() {
+    if (_timer == null) return;
+    _timer!.cancel();
+    setState(() => _currentTaskId = null);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: SingleChildScrollView(
+      backgroundColor: const Color(0xFF080812),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(LucideIcons.arrowLeft, color: AppTheme.onSurface),
+          onPressed: widget.onBack,
+        ),
+        title: Text("Task Manager", style: AppTheme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.onSurface)),
+        centerTitle: true,
+      ),
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: _firestoreService.getTasksStream(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+
+          final tasks = snapshot.data!.docs.map((doc) => Task.fromSnapshot(doc)).toList();
+          final groupedTasks = _groupTasks(tasks);
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(20),
+            itemCount: groupedTasks.length,
+            itemBuilder: (context, index) {
+              final date = groupedTasks.keys.elementAt(index);
+              final dailyTasks = groupedTasks[date]!;
+              return _buildDateSection(date, dailyTasks);
+            },
+          );
+        },
+      ),
+       floatingActionButton: FloatingActionButton(
+        onPressed: () => _showTaskDialog(),
+        backgroundColor: AppTheme.primary,
+        child: const Icon(LucideIcons.plus, color: Colors.white),
+      ),
+    );
+  }
+
+  Map<DateTime, List<Task>> _groupTasks(List<Task> tasks) {
+    final Map<DateTime, List<Task>> grouped = {};
+    for (var task in tasks) {
+      final dateKey = DateTime(task.dueDate.year, task.dueDate.month, task.dueDate.day);
+      if (grouped[dateKey] == null) grouped[dateKey] = [];
+      grouped[dateKey]!.add(task);
+    }
+    return grouped;
+  }
+
+  Widget _buildDateSection(DateTime date, List<Task> tasks) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 8.0, bottom: 16.0, top: 24.0),
+          child: Text(
+            DateFormat.yMMMMd().format(date),
+            style: AppTheme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.onSurface),
+          ),
+        ),
+        ...tasks.map((task) => _buildTaskCard(task)),
+      ],
+    );
+  }
+
+  Widget _buildTaskCard(Task task) {
+    final isCurrent = _currentTaskId == task.id;
+    final progress = task.estimatedMinutes > 0 ? (task.minutesSpent / task.estimatedMinutes).clamp(0.0, 1.0) : 0.0;
+
+    return _buildGlowContainer(
+      _buildGlassCard(
+        isTappable: true,
+        onTap: () => _showTaskDialog(task: task),
+        child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildAnimatedWidget(
-                _buildHeader(),
-                intervalStart: 0.0, intervalEnd: 0.4,
+              Row(
+                children: [
+                  Expanded(child: Text(task.title, style: AppTheme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.onSurface))),
+                  const SizedBox(width: 16),
+                  _buildStatusChip(task.status),
+                  IconButton(
+                    icon: Icon(isCurrent ? LucideIcons.pauseCircle : LucideIcons.playCircle, color: isCurrent ? AppTheme.primary : AppTheme.accent, size: 28),
+                    onPressed: () => isCurrent ? _stopTimer() : _startTimer(task),
+                  ),
+                ],
               ),
-              const SizedBox(height: 24),
-              _buildAnimatedWidget(
-                _buildQuickStats(),
-                intervalStart: 0.1, intervalEnd: 0.6,
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Icon(LucideIcons.clock, size: 16, color: AppTheme.mutedForeground),
+                  const SizedBox(width: 8),
+                  Text("${task.minutesSpent} / ${task.estimatedMinutes} min", style: AppTheme.textTheme.bodyMedium?.copyWith(color: AppTheme.mutedForeground)),
+                ],
               ),
-              const SizedBox(height: 24),
-              _buildAnimatedWidget(
-                _buildTabs(),
-                intervalStart: 0.2, intervalEnd: 0.7,
-              ),
-              SizedBox(
-                height: MediaQuery.of(context).size.height * 0.7,
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildPomodoroContent(),
-                    const WeeklyCalendar(),
-                    const DailyPlanner(),
-                    _buildStatsContent(),
-                  ],
-                ),
+              const SizedBox(height: 12),
+              if (progress > 0) LinearProgressIndicator(
+                value: progress,
+                backgroundColor: AppTheme.surface.withAlpha(50),
+                valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primary),
               ),
             ],
           ),
         ),
       ),
+      glowColor: isCurrent ? AppTheme.primary : Colors.transparent,
     );
   }
 
-  Widget _buildHeader() {
-    return Row(
-      children: [
-        IconButton(
-          icon: const Icon(LucideIcons.arrowLeft),
-          onPressed: widget.onBack,
-        ),
-        const SizedBox(width: 16),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("Time Management", style: AppTheme.textTheme.headlineSmall),
-            Text("Maximize your productivity", style: AppTheme.textTheme.bodyMedium?.copyWith(color: AppTheme.mutedForeground)),
-          ],
-        ),
-      ],
+  Widget _buildStatusChip(String status) {
+    Color color;
+    IconData icon;
+    switch (status) {
+      case 'In Progress':
+        color = AppTheme.chart4;
+        icon = LucideIcons.loader;
+        break;
+      case 'Done':
+        color = AppTheme.chart3;
+        icon = LucideIcons.checkCircle2;
+        break;
+      default: // To Do
+        color = AppTheme.mutedForeground;
+        icon = LucideIcons.circle;
+        break;
+    }
+    return Chip(
+      avatar: Icon(icon, color: color, size: 16),
+      label: Text(status, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
+      backgroundColor: color.withAlpha(25),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
     );
   }
 
-  Widget _buildQuickStats() {
-    final stats = [
-      { "label": "Focus Time", "value": "5.2h", "change": "+12%", "color": [AppTheme.primary, AppTheme.accent] },
-      { "label": "Tasks Done", "value": "24", "change": "+8%", "color": [AppTheme.chart3, AppTheme.chart2] },
-      { "label": "Productivity", "value": "87%", "change": "+5%", "color": [AppTheme.chart4, AppTheme.chart5] },
-    ];
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: List.generate(stats.length, (index) {
-        final stat = stats[index];
-        final colors = stat["color"] as List<Color>;
-        return Expanded(
-          child: _buildGlowContainer(
-             Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    children: [
-                      Text(stat["value"] as String, style: AppTheme.textTheme.headlineSmall),
-                      const SizedBox(height: 4),
-                      Text(stat["label"] as String, style: AppTheme.textTheme.bodySmall?.copyWith(color: AppTheme.mutedForeground)),
-                      const SizedBox(height: 4),
-                      Text(stat["change"] as String, style: AppTheme.textTheme.bodySmall?.copyWith(color: AppTheme.chart3)),
-                    ],
-                  ),
-                ),
+  void _showTaskDialog({Task? task}) {
+    final isNew = task == null;
+    final _titleController = TextEditingController(text: task?.title);
+    final _minutesController = TextEditingController(text: task?.estimatedMinutes.toString());
+    DateTime _selectedDate = task?.dueDate ?? DateTime.now();
+    String _selectedStatus = task?.status ?? 'To Do';
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        title: Text(isNew ? 'New Task' : 'Edit Task', style: const TextStyle(color: AppTheme.onSurface)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _titleController,
+                style: const TextStyle(color: AppTheme.onSurface),
+                decoration: const InputDecoration(labelText: 'Title', labelStyle: TextStyle(color: AppTheme.mutedForeground)),
               ),
-            glowColor: colors[0],
-          ),
-        );
-      }),
-    );
-  }
-
-  Widget _buildTabs() {
-    return TabBar(
-      controller: _tabController,
-      tabs: const [
-        Tab(icon: Icon(LucideIcons.timer), text: "Timer"),
-        Tab(icon: Icon(LucideIcons.calendar), text: "Week"),
-        Tab(icon: Icon(LucideIcons.listTodo), text: "Tasks"),
-        Tab(icon: Icon(LucideIcons.barChart3), text: "Stats"),
-      ],
-    );
-  }
-
-  Widget _buildPomodoroContent() {
-    final tips = [
-      { "step": "1", "text": "Choose a task to work on" },
-      { "step": "2", "text": "Set timer for 25 minutes" },
-      { "step": "3", "text": "Work until timer rings" },
-      { "step": "4", "text": "Take a 5 minute break" },
-      { "step": "5", "text": "After 4 sessions, take 15-30 min break" },
-    ];
-    return SingleChildScrollView(
-      child: Column(
-        children: [
-          _buildAnimatedWidget(
-            const PomodoroTimer(),
-            intervalStart: 0.3, intervalEnd: 0.8,
-          ),
-          const SizedBox(height: 24),
-          _buildAnimatedWidget(
-            _buildGlowContainer(
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text("Pomodoro Technique", style: AppTheme.textTheme.titleLarge),
-                      const SizedBox(height: 16),
-                      ...tips.map((tip) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8.0),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 12,
-                              backgroundColor: AppTheme.primary,
-                              child: Text(tip["step"] as String, style: const TextStyle(color: Colors.white, fontSize: 12)),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(child: Text(tip["text"] as String)),
-                          ],
-                        ),
-                      )),
-                    ],
-                  ),
-                ),
+              TextField(
+                controller: _minutesController,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(color: AppTheme.onSurface),
+                decoration: const InputDecoration(labelText: 'Estimated Minutes', labelStyle: TextStyle(color: AppTheme.mutedForeground)),
               ),
-            ),
-             intervalStart: 0.4, intervalEnd: 0.9,
+              const SizedBox(height: 20),
+              DropdownButtonFormField<String>(
+                initialValue: _selectedStatus,
+                dropdownColor: AppTheme.surface,
+                style: const TextStyle(color: AppTheme.onSurface),
+                decoration: const InputDecoration(labelText: 'Status', labelStyle: TextStyle(color: AppTheme.mutedForeground)),
+                items: ['To Do', 'In Progress', 'Done'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                onChanged: (value) => _selectedStatus = value!,
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Text('Due: ${DateFormat.yMd().format(_selectedDate)}', style: const TextStyle(color: AppTheme.onSurface)),
+                  IconButton(icon: const Icon(LucideIcons.calendar, color: AppTheme.accent), onPressed: () async {
+                    final newDate = await showDatePicker(context: context, initialDate: _selectedDate, firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 365)));
+                    if (newDate != null) setState(() => _selectedDate = newDate);
+                  })
+                ],
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          if (!isNew) TextButton(
+            child: const Text('Delete', style: TextStyle(color: AppTheme.chart2)),
+            onPressed: () {
+              _firestoreService.deleteTask(task.id);
+              Navigator.of(context).pop();
+            },
+          ),
+          TextButton(child: const Text('Cancel'), onPressed: () => Navigator.of(context).pop()),
+          TextButton(
+            child: const Text('Save'),
+            onPressed: () {
+              final data = {
+                'title': _titleController.text,
+                'estimatedMinutes': int.tryParse(_minutesController.text) ?? 30,
+                'dueDate': Timestamp.fromDate(_selectedDate),
+                'status': _selectedStatus,
+              };
+              if (isNew) {
+                _firestoreService.addTask(data);
+              } else {
+                _firestoreService.updateTask(task.id, data);
+              }
+              Navigator.of(context).pop();
+            },
           ),
         ],
       ),
     );
   }
 
-  Widget _buildStatsContent() {
-    final timeDistribution = [
-      { "category": "Deep Work", "hours": 18, "total": 40, "color": [AppTheme.primary, AppTheme.accent] },
-      { "category": "Meetings", "hours": 8, "total": 40, "color": [AppTheme.chart4, AppTheme.chart5] },
-      { "category": "Learning", "hours": 6, "total": 40, "color": [AppTheme.chart3, AppTheme.chart2] },
-      { "category": "Breaks", "hours": 5, "total": 40, "color": [AppTheme.chart1, AppTheme.chart2] },
-      { "category": "Other", "hours": 3, "total": 40, "color": [AppTheme.muted, AppTheme.mutedForeground] },
-    ];
-
-    final productivity = [
-      { "day": "Mon", "score": 85 },
-      { "day": "Tue", "score": 92 },
-      { "day": "Wed", "score": 78 },
-      { "day": "Thu", "score": 95 },
-      { "day": "Fri", "score": 88 },
-      { "day": "Sat", "score": 70 },
-      { "day": "Sun", "score": 82 },
-    ];
-    
-    final peakTimes = [
-      { "period": "Morning (9-11 AM)", "productivity": "Very High", "icon": "🌅" },
-      { "period": "Afternoon (2-4 PM)", "productivity": "High", "icon": "☀️" },
-      { "period": "Evening (7-9 PM)", "productivity": "Medium", "icon": "🌆" },
-    ];
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(vertical: 24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildAnimatedWidget(
-             _buildGlowContainer(
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text("Time Distribution (This Week)", style: AppTheme.textTheme.titleLarge),
-                        const SizedBox(height: 16),
-                        ...timeDistribution.map((item) {
-                          final percentage = (item["hours"] as int) / (item["total"] as int);
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12.0),
-                            child: Column(
-                              children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(item["category"] as String),
-                                    Text("${item["hours"]}h"),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                LinearProgressIndicator(
-                                  value: percentage.toDouble(),
-                                  backgroundColor: AppTheme.muted,
-                                  valueColor: AlwaysStoppedAnimation<Color>((item["color"] as List<Color>)[0]),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              intervalStart: 0.3, intervalEnd: 0.8,
+  Widget _buildGlassCard({required Widget child, bool isTappable = false, VoidCallback? onTap, double borderRadius = 20}) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(borderRadius),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppTheme.surface.withAlpha(50),
+            borderRadius: BorderRadius.circular(borderRadius),
+            border: Border.all(color: Colors.white.withAlpha(26)),
           ),
-          const SizedBox(height: 24),
-          _buildAnimatedWidget(
-            _buildGlowContainer(
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text("Productivity Score", style: AppTheme.textTheme.titleLarge),
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        height: 150,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: productivity.map((item) {
-                            return Column(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                 Flexible(
-                                   child: FractionallySizedBox(
-                                    heightFactor: (item['score'] as int) / 100.0,
-                                    child: Container(
-                                      width: 20,
-                                      decoration: BoxDecoration(
-                                        color: AppTheme.primary,
-                                        borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
-                                      ),
-                                    ),
-                                ),
-                                 ),
-                                const SizedBox(height: 8),
-                                Text(item['day'] as String),
-                              ],
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-               glowColor: AppTheme.primary,
-            ),
-             intervalStart: 0.4, intervalEnd: 0.9,
+          child: isTappable
+              ? Material(color: Colors.transparent, child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(borderRadius), child: child))
+              : child,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGlowContainer(Widget child, {Color? glowColor, double borderRadius = 20}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(borderRadius),
+        boxShadow: [
+          BoxShadow(
+            color: (glowColor ?? AppTheme.primary.withAlpha(0)).withAlpha(glowColor == Colors.transparent ? 0 : 102),
+            blurRadius: 25,
+            spreadRadius: -8,
+            offset: const Offset(0, 5),
           ),
-          const SizedBox(height: 24),
-           _buildAnimatedWidget(
-              _buildGlowContainer(
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text("Your Peak Performance Times", style: AppTheme.textTheme.titleLarge),
-                        const SizedBox(height: 16),
-                        ...peakTimes.map((time) => ListTile(
-                              leading: Text(time['icon'] as String, style: const TextStyle(fontSize: 24)),
-                              title: Text(time['period'] as String),
-                              subtitle: Text(time['productivity'] as String),
-                            )),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-               intervalStart: 0.5, intervalEnd: 1.0,
-           ),
         ],
       ),
+      child: child,
     );
   }
 }

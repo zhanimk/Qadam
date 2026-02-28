@@ -113,4 +113,26 @@ class FirestoreService {
       await incrementDailyProgress('spending', data['amount']);
     }
   }
+
+  // --- TASKS ---
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> getTasksStream() {
+    if (_user == null) return const Stream.empty();
+    return _db.collection('users').doc(_user!.uid).collection('tasks').orderBy('dueDate').snapshots();
+  }
+
+  Future<void> addTask(Map<String, dynamic> data) async {
+    if (_user == null) return;
+    await _db.collection('users').doc(_user!.uid).collection('tasks').add(data);
+  }
+
+  Future<void> updateTask(String taskId, Map<String, dynamic> data) async {
+    if (_user == null) return;
+    await _db.collection('users').doc(_user!.uid).collection('tasks').doc(taskId).update(data);
+  }
+
+  Future<void> deleteTask(String taskId) async {
+    if (_user == null) return;
+    await _db.collection('users').doc(_user!.uid).collection('tasks').doc(taskId).delete();
+  }
 }

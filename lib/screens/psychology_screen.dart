@@ -1,4 +1,3 @@
-
 import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -35,11 +34,12 @@ class _PsychologyScreenState extends State<PsychologyScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.surface,
+      backgroundColor: const Color(0xFF080812),
       appBar: AppBar(
-        title: const Text('Your Mood'),
-        backgroundColor: AppTheme.surface,
+        title: const Text('Your Mood', style: TextStyle(color: AppTheme.onSurface, fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(icon: const Icon(Icons.arrow_back, color: AppTheme.onSurface), onPressed: () => Navigator.of(context).pop()),
       ),
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: _firestoreService.getUserDataStream(),
@@ -78,7 +78,7 @@ class _PsychologyScreenState extends State<PsychologyScreen> {
             style: Theme.of(context)
                 .textTheme
                 .titleLarge
-                ?.copyWith(fontWeight: FontWeight.bold)),
+                ?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.onSurface)),
         const SizedBox(height: 24),
         SizedBox(
           height: 120,
@@ -101,9 +101,7 @@ class _PsychologyScreenState extends State<PsychologyScreen> {
     return GestureDetector(
       onTap: () => _firestoreService.updateDailyProgress('mood', mood.name),
       child: _buildGlowContainer(
-        color: isSelected ? mood.color : Colors.transparent,
-        borderRadius: 28,
-        child: _buildGlassCard(
+        _buildGlassCard(
           borderRadius: 28,
           child: SizedBox(
             width: 100,
@@ -112,11 +110,13 @@ class _PsychologyScreenState extends State<PsychologyScreen> {
               children: [
                 Icon(mood.icon, size: 40, color: isSelected ? mood.color : AppTheme.onSurface),
                 const SizedBox(height: 8),
-                Text(mood.name, style: TextStyle(color: isSelected ? mood.color : AppTheme.onSurface)),
+                Text(mood.name, style: TextStyle(color: isSelected ? mood.color : AppTheme.onSurface, fontWeight: FontWeight.bold)),
               ],
             ),
           ),
         ),
+        color: isSelected ? mood.color : Colors.transparent,
+        borderRadius: 28,
       ),
     );
   }
@@ -125,7 +125,7 @@ class _PsychologyScreenState extends State<PsychologyScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text("Relaxation Videos", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+        Text("Relaxation Videos", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.onSurface)),
         const SizedBox(height: 16),
         SizedBox(
           height: 200,
@@ -135,16 +135,19 @@ class _PsychologyScreenState extends State<PsychologyScreen> {
             itemBuilder: (context, index) {
               return Padding(
                 padding: const EdgeInsets.only(right: 16.0),
-                child: SizedBox(
-                  width: 300,
-                  child: YoutubePlayer(
-                    controller: YoutubePlayerController(
-                      initialVideoId: _videoIds[index],
-                      flags: const YoutubePlayerFlags(
-                        autoPlay: false,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: SizedBox(
+                    width: 300,
+                    child: YoutubePlayer(
+                      controller: YoutubePlayerController(
+                        initialVideoId: _videoIds[index],
+                        flags: const YoutubePlayerFlags(
+                          autoPlay: false,
+                        ),
                       ),
+                      showVideoProgressIndicator: true,
                     ),
-                    showVideoProgressIndicator: true,
                   ),
                 ),
               );
@@ -159,22 +162,25 @@ class _PsychologyScreenState extends State<PsychologyScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text("Mood History", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+        Text("Mood History", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.onSurface)),
         const SizedBox(height: 16),
-        _buildGlassCard(
-          child: const Padding(
-            padding: EdgeInsets.all(20.0),
-            child: Center(
-              child: Text("Mood chart coming soon!", style: TextStyle(color: AppTheme.mutedForeground)),
+        _buildGlowContainer(
+           _buildGlassCard(
+            child: const Padding(
+              padding: EdgeInsets.all(20.0),
+              child: Center(
+                child: Text("Mood chart coming soon!", style: TextStyle(color: AppTheme.mutedForeground)),
+              ),
             ),
           ),
+          color: AppTheme.primary
         ),
       ],
     );
   }
 
-  Widget _buildGlowContainer(
-      {required Widget child, required Color color, double borderRadius = 28}) {
+  Widget _buildGlowContainer(Widget child,
+      {required Color color, double borderRadius = 28}) {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(borderRadius),

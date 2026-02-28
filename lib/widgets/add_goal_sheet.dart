@@ -17,6 +17,7 @@ class _AddGoalSheetState extends State<AddGoalSheet> {
   final _descriptionController = TextEditingController();
   final _startDateController = TextEditingController();
   final _dueDateController = TextEditingController();
+  final _frequencyController = TextEditingController(text: 'daily');
   final _firestoreService = FirestoreService();
 
   DateTime? _startDate;
@@ -34,6 +35,7 @@ class _AddGoalSheetState extends State<AddGoalSheet> {
         'createdAt': FieldValue.serverTimestamp(),
         'startDate': _startDate != null ? Timestamp.fromDate(_startDate!) : null,
         'dueDate': _dueDate != null ? Timestamp.fromDate(_dueDate!) : null,
+        'frequency': _categoryController.text == 'Habit' ? _frequencyController.text : null,
       };
 
       try {
@@ -70,7 +72,8 @@ class _AddGoalSheetState extends State<AddGoalSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final categories = ['Personal', 'Work', 'Health', 'Finance', 'Learning'];
+    final categories = ['Personal', 'Work', 'Health', 'Finance', 'Learning', 'Habit'];
+    final frequencies = ['daily', 'weekly', 'monthly'];
 
     return Padding(
       padding: MediaQuery.of(context).viewInsets,
@@ -106,6 +109,17 @@ class _AddGoalSheetState extends State<AddGoalSheet> {
                   _categoryController.text = value!;
                 }),
               ),
+               if (_categoryController.text == 'Habit') ...[
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: _frequencyController.text,
+                  decoration: const InputDecoration(labelText: "Frequency"),
+                  items: frequencies.map((f) => DropdownMenuItem(value: f, child: Text(f))).toList(),
+                  onChanged: (value) => setState(() {
+                    _frequencyController.text = value!;
+                  }),
+                ),
+              ],
               const SizedBox(height: 16),
               TextFormField(
                 controller: _descriptionController,
