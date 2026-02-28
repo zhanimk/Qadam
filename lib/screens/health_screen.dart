@@ -1,56 +1,48 @@
-
 import 'dart:ui';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:percent_indicator/circular_percent_indicator.dart';
 import 'package:qadam/services/firestore_service.dart';
 import 'package:qadam/theme/app_theme.dart';
+import 'package:percent_indicator/percent_indicator.dart';
+import 'package:qadam/utils/string_extension.dart';
 
-class HealthScreen extends StatefulWidget {
+class HealthScreen extends StatelessWidget {
   const HealthScreen({Key? key}) : super(key: key);
-
-  @override
-  _HealthScreenState createState() => _HealthScreenState();
-}
-
-class _HealthScreenState extends State<HealthScreen> {
-  final FirestoreService _firestoreService = FirestoreService();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.surface,
+      backgroundColor: const Color(0xFF080812),
       appBar: AppBar(
-        title: const Text('Health Tracking'),
-        backgroundColor: AppTheme.surface,
+        backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(LucideIcons.arrowLeft, color: AppTheme.onSurface),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text("Health & Wellness", style: AppTheme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.onSurface)),
+        centerTitle: true,
       ),
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: _firestoreService.getUserDataStream(),
+        stream: FirestoreService().getUserDataStream(),
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-          final userData = snapshot.data?.data() ?? {};
-          final dailyProgress =
-              userData['dailyProgress'] as Map<String, dynamic>? ?? {};
-          final waterIntake = (dailyProgress['waterIntake'] ?? 0).toDouble();
-          final waterGoal = (dailyProgress['waterGoal'] ?? 8).toDouble();
-          final weight = (dailyProgress['weight'] ?? 0.0).toDouble();
-          final waterProgress =
-              waterGoal > 0 ? (waterIntake / waterGoal).clamp(0.0, 1.0) : 0.0;
+          final userData = snapshot.data!.data() ?? {};
+          final dailyProgress = userData['dailyProgress'] as Map<String, dynamic>? ?? {};
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildWaterTracker(
-                    context, waterIntake, waterGoal, waterProgress),
-                const SizedBox(height: 32),
-                _buildOtherMetrics(context, weight),
+                _buildSleepTracker(context, dailyProgress, userData),
+                const SizedBox(height: 24),
+                _buildActivityChart(context, dailyProgress, userData),
+                const SizedBox(height: 24),
+                _buildHealthTips(context),
               ],
             ),
           );
@@ -59,203 +51,202 @@ class _HealthScreenState extends State<HealthScreen> {
     );
   }
 
-  Widget _buildWaterTracker(BuildContext context, double waterIntake,
-      double waterGoal, double waterProgress) {
-    return _buildGlowContainer(
-      color: Colors.blue,
-      child: _buildGlassCard(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text("Water Intake",
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 24),
-              Center(
-                child: CircularPercentIndicator(
-                  radius: 100.0,
-                  lineWidth: 15.0,
-                  percent: waterProgress,
-                  center: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(LucideIcons.glassWater,
-                          size: 40, color: Colors.blue),
-                      const SizedBox(height: 8),
-                      Text(
-                        "${waterIntake.toStringAsFixed(1)} L",
-                        style: Theme.of(context)
-                            .textTheme
-                            .displaySmall
-                            ?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.onSurface),
-                      ),
-                      Text(
-                        "of ${waterGoal.toStringAsFixed(1)} L",
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyMedium
-                            ?.copyWith(color: AppTheme.mutedForeground),
-                      ),
-                    ],
-                  ),
-                  circularStrokeCap: CircularStrokeCap.round,
-                  backgroundColor: AppTheme.surface.withAlpha(128),
-                  progressColor: Colors.blue,
+  Widget _buildSleepTracker(BuildContext context, Map<String, dynamic> dailyProgress, Map<String, dynamic> userData) {
+    final sleepHours = dailyProgress['sleepHours'] ?? 0;
+    final sleepGoal = userData['sleepGoal'] ?? 8;
+    final double percent = sleepGoal > 0 ? (sleepHours / sleepGoal).clamp(0.0, 1.0) : 0.0;
+
+    return _buildGlassCard(
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(LucideIcons.bedDouble, color: AppTheme.chart3, size: 28),
+                const SizedBox(width: 12),
+                Text("Sleep Analysis", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Center(
+              child: CircularPercentIndicator(
+                radius: 70.0,
+                lineWidth: 12.0,
+                percent: percent,
+                center: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text("${sleepHours}h", style: Theme.of(context).textTheme.displaySmall?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.onSurface)),
+                    Text("of $sleepGoal hours", style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.mutedForeground)),
+                  ],
+                ),
+                circularStrokeCap: CircularStrokeCap.round,
+                backgroundColor: AppTheme.surface.withAlpha(128),
+                progressColor: AppTheme.chart3,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Center(
+              child: ElevatedButton(
+                onPressed: () {
+                   _showUpdateValueSheet(context, 'sleepHours', dailyProgress['sleepHours'] ?? 0);
+                },
+                child: const Text("Log Sleep"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.chart3,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
               ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActivityChart(BuildContext context, Map<String, dynamic> dailyProgress, Map<String, dynamic> userData) {
+    final calories = dailyProgress['caloriesBurned'] ?? 0;
+    final calorieGoal = userData['calorieGoal'] ?? 500;
+    final double percent = calorieGoal > 0 ? (calories / calorieGoal).clamp(0.0, 1.0) : 0.0;
+
+    return _buildGlassCard(
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+             Row(
+              children: [
+                const Icon(LucideIcons.flame, color: AppTheme.chart4, size: 28),
+                const SizedBox(width: 12),
+                Text("Activity", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Center(child: Text("$calories / $calorieGoal kcal burned", style: AppTheme.textTheme.titleLarge)),
+             const SizedBox(height: 10),
+            LinearProgressIndicator(
+              value: percent,
+              backgroundColor: AppTheme.surface.withAlpha(128),
+              valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.chart4),
+              minHeight: 8,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHealthTips(BuildContext context) {
+    return _buildGlassCard(
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+             Row(
                 children: [
-                  _buildWaterButton(context, "-1", -1.0, false),
-                  _buildWaterButton(context, "+0.25", 0.25, true),
-                  _buildWaterButton(context, "+0.5", 0.5, true),
-                  _buildWaterButton(context, "+1", 1.0, true),
+                  const Icon(LucideIcons.brainCircuit, color: AppTheme.accent, size: 28),
+                  const SizedBox(width: 12),
+                  Text("Tip of the Day", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
                 ],
               ),
-            ],
-          ),
+            const SizedBox(height: 16),
+            Text(
+              "Stay hydrated! Drinking enough water can help improve your mood, boost your energy levels, and prevent headaches.",
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: AppTheme.mutedForeground),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildWaterButton(
-      BuildContext context, String label, double amount, bool isAdding) {
-    return ElevatedButton(
-      onPressed: () {
-        _firestoreService.incrementDailyProgress('waterIntake', amount);
-      },
-      child: Text(label),
-      style: ElevatedButton.styleFrom(
-        backgroundColor:
-            isAdding ? Colors.blue : AppTheme.surface.withAlpha(128),
-        foregroundColor: Colors.white,
-        shape: const CircleBorder(),
-        padding: const EdgeInsets.all(20),
-      ),
-    );
-  }
+  void _showUpdateValueSheet(BuildContext context, String field, num currentValue) {
+    final TextEditingController controller = TextEditingController(text: currentValue.toString());
 
-  Widget _buildOtherMetrics(BuildContext context, double weight) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text("Other Metrics",
-            style: Theme.of(context)
-                .textTheme
-                .titleLarge
-                ?.copyWith(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 16),
-        _buildMetricCard(context, "Calories", "1200 kcal", LucideIcons.flame, Colors.orange, isTappable: false),
-        const SizedBox(height: 16),
-        _buildMetricCard(context, "Weight", "${weight.toStringAsFixed(1)} kg", LucideIcons.activity, Colors.green, isTappable: true, onTap: () => _showWeightInputDialog(context, weight)),
-      ],
-    );
-  }
-
-  void _showWeightInputDialog(BuildContext context, double currentWeight) {
-    final TextEditingController controller = TextEditingController(text: currentWeight.toStringAsFixed(1));
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: AppTheme.card,
-          title: const Text("Enter Your Weight"),
-          content: TextField(
-            controller: controller,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            autofocus: true,
-            decoration: const InputDecoration(hintText: "kg"),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+          child: Container(
+            padding: const EdgeInsets.all(24.0),
+            decoration: BoxDecoration(
+              color: AppTheme.surface.withAlpha(204),
+              borderRadius: const BorderRadius.only(topLeft: Radius.circular(28), topRight: Radius.circular(28)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Update ${field.replaceAll(RegExp(r'(?<=[a-z])(?=[A-Z])'), ' ').capitalizeFirst()}", style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 24),
+                  TextField(
+                    controller: controller,
+                    autofocus: true,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: 'New Value',
+                      filled: true,
+                      fillColor: AppTheme.surface.withAlpha(128),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                    ),
+                    onSubmitted: (value) {
+                      final num? newValue = num.tryParse(value);
+                      if (newValue != null) {
+                         FirestoreService().updateDailyProgress(field, newValue);
+                      }
+                      Navigator.pop(context);
+                    },
+                  ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    child: const Text("Done"),
+                    onPressed: () {
+                        final num? newValue = num.tryParse(controller.text);
+                        if (newValue != null) {
+                          FirestoreService().updateDailyProgress(field, newValue);
+                        }
+                      Navigator.pop(context);
+                    },
+                     style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: AppTheme.accent,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                  ),
+                )
+              ],
+            ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text("Cancel"),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final double? newWeight = double.tryParse(controller.text);
-                if (newWeight != null) {
-                  _firestoreService.updateDailyProgress('weight', newWeight);
-                }
-                Navigator.of(context).pop();
-              },
-              child: const Text("Save"),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildMetricCard(BuildContext context, String title, String value, IconData icon, Color color, {bool isTappable = false, VoidCallback? onTap}) {
-    return _buildGlassCard(
-      isTappable: isTappable,
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
-        child: Row(
-          children: [
-            Icon(icon, color: color, size: 28),
-            const SizedBox(width: 16),
-            Text(title, style: Theme.of(context).textTheme.titleMedium),
-            const Spacer(),
-            Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-          ],
         ),
       ),
     );
   }
 
-  Widget _buildGlowContainer(
-      {required Widget child, required Color color, double borderRadius = 28}) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(borderRadius),
-        boxShadow: [
-          BoxShadow(
-              color: color.withAlpha(100),
-              blurRadius: 25,
-              spreadRadius: -8,
-              offset: const Offset(0, 4)),
-        ],
-      ),
-      child: child,
-    );
-  }
-
-  Widget _buildGlassCard(
-      {required Widget child,
-      bool isTappable = false,
-      double borderRadius = 28,
-      VoidCallback? onTap}) {
+  Widget _buildGlassCard({required Widget child}) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(borderRadius),
+      borderRadius: BorderRadius.circular(28),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
         child: Container(
           decoration: BoxDecoration(
             color: AppTheme.surface.withAlpha(50),
-            borderRadius: BorderRadius.circular(borderRadius),
+            borderRadius: BorderRadius.circular(28),
             border: Border.all(color: Colors.white.withAlpha(26)),
           ),
-          child: isTappable
-              ? Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: onTap,
-                    borderRadius: BorderRadius.circular(borderRadius),
-                    child: child,
-                  ),
-                )
-              : child,
+          child: child,
         ),
       ),
     );
