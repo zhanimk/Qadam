@@ -1,4 +1,3 @@
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -76,5 +75,42 @@ class FirestoreService {
   Future<void> deleteGoal(String goalId) async {
     if (_user == null) return;
     await _db.collection('users').doc(_user!.uid).collection('goals').doc(goalId).delete();
+  }
+
+  // --- SPENDING GOALS ---
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> getSpendingGoalsStream() {
+    if (_user == null) return const Stream.empty();
+    return _db.collection('users').doc(_user!.uid).collection('spendingGoals').orderBy('createdAt', descending: true).snapshots();
+  }
+   
+  Future<void> addSpendingGoal(Map<String, dynamic> data) async {
+    if (_user == null) return;
+    await _db.collection('users').doc(_user!.uid).collection('spendingGoals').add(data);
+  }
+
+  Future<void> updateSpendingGoal(String goalId, Map<String, dynamic> data) async {
+    if (_user == null) return;
+    await _db.collection('users').doc(_user!.uid).collection('spendingGoals').doc(goalId).update(data);
+  }
+
+  Future<void> deleteSpendingGoal(String goalId) async {
+    if (_user == null) return;
+    await _db.collection('users').doc(_user!.uid).collection('spendingGoals').doc(goalId).delete();
+  }
+
+  // --- TRANSACTIONS ---
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> getTransactionsStream() {
+    if (_user == null) return const Stream.empty();
+    return _db.collection('users').doc(_user!.uid).collection('transactions').orderBy('date', descending: true).snapshots();
+  }
+
+  Future<void> addTransaction(Map<String, dynamic> data) async {
+    if (_user == null) return;
+    await _db.collection('users').doc(_user!.uid).collection('transactions').add(data);
+    if (data['type'] == 'expense') {
+      await incrementDailyProgress('spending', data['amount']);
+    }
   }
 }

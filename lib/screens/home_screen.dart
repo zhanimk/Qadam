@@ -1,19 +1,21 @@
-
 import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:qadam/screens/analytics_screen.dart';
-import 'package:qadam/screens/finance_screen.dart';
 import 'package:qadam/screens/goals_screen.dart';
 import 'package:qadam/screens/habits_screen.dart';
+import 'package:qadam/screens/health_screen.dart';
+import 'package:qadam/screens/psychology_screen.dart';
+import 'package:qadam/screens/spending_screen.dart';
 import 'package:qadam/services/firestore_service.dart';
 import 'package:qadam/theme/app_theme.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  final void Function(int) onNavigate;
+
+  const HomeScreen({Key? key, required this.onNavigate}) : super(key: key);
 
   @override
   _HomeScreenState createState() => _HomeScreenState();
@@ -54,10 +56,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _auroraController.dispose();
     _staggeredController.dispose();
     super.dispose();
-  }
-
-  void _scrollToAnalytics() {
-    Navigator.push(context, MaterialPageRoute(builder: (context) => const AnalyticsScreen()));
   }
 
   Widget _buildAnimatedChild(Widget child, {required double start, double? duration}) {
@@ -146,10 +144,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildContent(Map<String, dynamic> userData, Map<String, dynamic> dailyProgress, double overallProgress, int completedGoals, int totalGoals) {
     return SafeArea(
-      child: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
+      child: SingleChildScrollView(
+        child: Column(
+          children: [
+            Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -164,15 +162,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ],
               ),
             ),
-          ),
-         SliverToBoxAdapter(
-            child: _buildAnimatedChild(
+            _buildAnimatedChild(
               _buildQuickActions(),
               start: 0.5, duration: 0.5
             ),
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
+            Padding(
                padding: const EdgeInsets.all(24.0),
                key: _analyticsKey,
                child: _buildAnimatedChild(
@@ -180,8 +174,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 start: 0.7, duration: 0.5
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -223,7 +217,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text("How are you feeling?", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+        GestureDetector(
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PsychologyScreen())),
+          child: Text("How are you feeling?", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+        ),
         const SizedBox(height: 16),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -278,12 +275,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
          Text("Daily Progress", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
          const SizedBox(height: 16),
          GridView.count(
-          crossAxisCount: 3, // Changed to 3
+          crossAxisCount: 3,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          crossAxisSpacing: 12, // Adjusted spacing
-          mainAxisSpacing: 12,  // Adjusted spacing
-          childAspectRatio: 0.9, // Adjusted aspect ratio
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 0.9,
           children: [
             _buildGlowContainer(
               color: Colors.blue,
@@ -294,7 +291,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 goal: "/ ${dailyProgress['waterGoal'] ?? 8}",
                 icon: LucideIcons.glassWater,
                 color: Colors.blue,
-                onTap: () => _showUpdateValueSheet('waterIntake', dailyProgress['waterIntake'] ?? 0, isIncrement: true, incrementValue: 1),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const HealthScreen())),
               ),
             ),
             _buildGlowContainer(
@@ -306,7 +303,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 goal: "kcal",
                 icon: LucideIcons.flame,
                 color: Colors.orange,
-                onTap: () => _showUpdateValueSheet('caloriesBurned', dailyProgress['caloriesBurned'] ?? 0),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const HealthScreen())),
               ),
             ),
              _buildGlowContainer(
@@ -318,7 +315,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 goal: "kg",
                 icon: LucideIcons.activity,
                 color: Colors.green,
-                onTap: () => _showUpdateValueSheet('weight', dailyProgress['weight'] ?? 0),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const HealthScreen())),
               ),
             ),
             _buildGlowContainer(
@@ -350,11 +347,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               borderRadius: 20,
               child: _StatCard(
                 label: "Spending",
-                value: "\$${dailyProgress['spending'] ?? 0}",
+                value: "\$${(dailyProgress['spending'] ?? 0).toStringAsFixed(2)}",
                 goal: "",
                 icon: LucideIcons.wallet,
                 color: Colors.teal,
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const FinanceScreen())),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const SpendingScreen())),
               ),
             ),
           ],
@@ -465,8 +462,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
      final actions = [
       {'label': "My Goals", 'icon': LucideIcons.checkCircle2, 'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (context) => const GoalsScreen()))},
       {'label': "Habits", 'icon': LucideIcons.repeat, 'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (context) => const HabitsScreen()))},
-      {'label': "Analytics", 'icon': LucideIcons.pieChart, 'onTap': _scrollToAnalytics},
-      {'label': "Finance", 'icon': LucideIcons.wallet, 'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (context) => const FinanceScreen()))},
+      {'label': "Analytics", 'icon': LucideIcons.pieChart, 'onTap': () => widget.onNavigate(2)},
+      {'label': "Health", 'icon': LucideIcons.heartPulse, 'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (context) => const HealthScreen()))},
+      {'label': "Psychology", 'icon': LucideIcons.brain, 'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PsychologyScreen()))},
+      {'label': "Finance", 'icon': LucideIcons.wallet, 'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (context) => const SpendingScreen()))},
       {'label': "Self-dev", 'icon': LucideIcons.bookOpen, 'onTap': () {}},
       {'label': "AI Coach", 'icon': LucideIcons.messageCircle, 'onTap': () {}},
     ];

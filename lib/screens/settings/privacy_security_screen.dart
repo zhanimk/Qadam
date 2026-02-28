@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:qadam/screens/placeholder_screen.dart';
 import 'package:qadam/theme/app_theme.dart';
 
 class PrivacySecurityScreen extends StatefulWidget {
@@ -81,42 +80,7 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
                 ),
                  glowColor: _twoFactorEnabled ? AppTheme.primary : AppTheme.surface.withAlpha(0),
               ),
-              const SizedBox(height: 16),
-               _buildGlowContainer(
-                 Card(
-                  child: ListTile(
-                     contentPadding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 20.0),
-                    leading: const Icon(LucideIcons.smartphone, color: AppTheme.mutedForeground),
-                    title: Text('Manage Sessions', style: AppTheme.textTheme.titleMedium),
-                    subtitle: Text('Review and revoke active sessions', style: AppTheme.textTheme.bodyMedium?.copyWith(color: AppTheme.mutedForeground)),
-                    trailing: const Icon(LucideIcons.chevronRight, color: AppTheme.mutedForeground),
-                    onTap: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => const PlaceholderScreen(title: 'Manage Sessions')));
-                    },
-                  ),
-                             ),
-               ),
               const SizedBox(height: 24),
-              Text(
-                'Data Management',
-                style: AppTheme.textTheme.titleMedium?.copyWith(color: AppTheme.mutedForeground),
-              ),
-              const SizedBox(height: 8),
-               _buildGlowContainer(
-                 Card(
-                  child: ListTile(
-                     contentPadding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 20.0),
-                    leading: const Icon(LucideIcons.downloadCloud, color: AppTheme.mutedForeground),
-                    title: Text('Download Your Data', style: AppTheme.textTheme.titleMedium),
-                     subtitle: Text('Get a copy of your personal data', style: AppTheme.textTheme.bodyMedium?.copyWith(color: AppTheme.mutedForeground)),
-                    trailing: const Icon(LucideIcons.chevronRight, color: AppTheme.mutedForeground),
-                    onTap: () {
-                         Navigator.push(context, MaterialPageRoute(builder: (context) => const PlaceholderScreen(title: 'Download Data')));
-                    },
-                  ),
-                             ),
-               ),
-                const SizedBox(height: 24),
                  _buildGlowContainer(
                    Card(
                      elevation: 0,

@@ -12,16 +12,16 @@ class AppTheme {
   static const Color accentForeground = Color(0xFFFFFFFF);
 
   // Background & Surface
-  static const Color surface = Color(0xFF0F0F1E); // Adjusted from 0F172A to match app
+  static const Color surface = Color(0xFF080812); // Darker background
   static const Color onSurface = Color(0xFFF1F5F9);
-  static const Color card = Color(0xFF1E293B);
+  static const Color card = Color(0xFF1A1A2E); // Darker card
   static const Color cardForeground = Color(0xFFF1F5F9);
-  static const Color popover = Color(0xFF1E293B);
+  static const Color popover = Color(0xFF1A1A2E); // Darker popover
 
   // Muted & Borders
   static const Color muted = Color(0xFF1E293B);
   static const Color mutedForeground = Color(0xFF94A3B8);
-  static const Color border = Color.fromRGBO(139, 92, 246, 0.2);
+  static const Color border = Color.fromRGBO(139, 92, 246, 0.15); // More subtle border
   
   // Input & Destructive
   static const Color input = Color.fromRGBO(139, 92, 246, 0.1);

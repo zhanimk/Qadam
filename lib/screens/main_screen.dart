@@ -51,7 +51,7 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     final List<Widget> _widgetOptions = <Widget>[
-      HomeScreen(key: _homeKey),
+      HomeScreen(key: _homeKey, onNavigate: _onItemTapped),
       GoalsScreen(key: _goalsKey),
       ProgressPage(key: _progressKey),
       AwardsScreen(key: _awardsKey),
